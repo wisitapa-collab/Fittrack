@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="FitTrack" />
+  <meta name="theme-color" content="#f0f2f7" />
+  <title>FitTrack</title>
+
+  <!-- PWA Manifest inline -->
+  <script>
+    const manifest = {
+      name: "FitTrack — 12 Week Plan",
+      short_name: "FitTrack",
+      start_url: "./",
+      display: "standalone",
+      background_color: "#f0f2f7",
+      theme_color: "#007aff",
+      orientation: "portrait",
+      icons: [
+        { src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%23007aff'/><text y='.9em' font-size='72' x='12'>🏋️</text></svg>", sizes: "192x192", type: "image/svg+xml" }
+      ]
+    };
+    const blob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('link');
+    link.rel = 'manifest'; link.href = url;
+    document.head.appendChild(link);
+  </script>
+
+  <!-- Apple touch icon -->
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%23007aff'/><text y='.9em' font-size='72' x='12'>🏋️</text></svg>" />
+
+  <!-- React + Babel from CDN -->
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body { background: linear-gradient(160deg,#e8edf8 0%,#f2eef8 40%,#eef4f0 100%); min-height: 100vh; font-family: -apple-system,'SF Pro Display','Noto Sans Thai',system-ui,sans-serif; }
+    input, select { font-family: inherit; }
+    ::-webkit-scrollbar { display: none; }
+    option { background: white; color: #1c1c1e; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // ── TOKENS
+    const T = {
+      bgGrad: "linear-gradient(160deg,#e8edf8 0%,#f2eef8 40%,#eef4f0 100%)",
+      accent: "#007aff", mint: "#34c759", kbody: "#ff375f",
+      gold: "#ff9500", purple: "#af52de",
+      text: "#1c1c1e", muted: "#8e8e93", dim: "#c7c7cc",
+      shimmer: "linear-gradient(135deg,rgba(255,255,255,0.9) 0%,rgba(200,210,255,0.4) 40%,rgba(255,200,230,0.3) 70%,rgba(255,255,255,0.8) 100%)",
+    };
+
+    const PHASES = ["Week 1–2","Week 3–4","Week 5–8","Week 9–12"];
+    const DAYS = ["จันทร์","อังคาร","พุธ","พฤหัส","ศุกร์","เสาร์","อาทิตย์"];
+    const WORKOUT_TYPES = ["Full Body Pilates","Upper Body","Lower Body / Glutes","HIIT","Abs & Core","Cardio","Recovery","พัก"];
+    const CHANNELS = ["KBodySculpt 🌸","Growingannanas 🍍","ทั้งสอง"];
+    const MUSCLE_GROUPS = ["Glutes","Quads","Hamstrings","Core","Chest","Back","Shoulders","Arms","Full Body","Inner Thigh"];
+    const INTENSITY = ["เบามาก","เบา","ปานกลาง","หนัก","หนักมาก"];
+    const CLOTHES_FIT = ["คับมาก","คับ","พอดีตึง","พอดี","หลวม"];
+    const CHECKPOINTS = ["Week 0 (เริ่ม)","Week 2","Week 4","Week 6","Week 8","Week 10","Week 12"];
+    const PHASE_TARGETS = [575, 780, 1075, 1270];
+
+    // ── STORAGE (localStorage)
+    const load = (key) => { try { const v = localStorage.getItem("ft_"+key); return v ? JSON.parse(v) : null; } catch { return null; } };
+    const save = (key, val) => { try { localStorage.setItem("ft_"+key, JSON.stringify(val)); } catch {} };
+
+    // ── COMPONENTS
+    const Badge = ({ children, color = T.accent }) => (
+      <span style={{ fontSize:10, fontWeight:600, color, background:`${color}18`, borderRadius:20, padding:"3px 9px", border:`1px solid ${color}28` }}>{children}</span>
+    );
+
+    const Inp = ({ label, type="text", value, onChange, placeholder, min, max }) => (
+      <div style={{ marginBottom:10 }}>
+        {label && <div style={{ fontSize:11, color:T.muted, marginBottom:4, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.08em" }}>{label}</div>}
+        <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} min={min} max={max}
+          style={{ width:"100%", background:"rgba(255,255,255,0.85)", border:"1px solid rgba(0,0,0,0.08)", borderRadius:10, padding:"10px 12px", color:T.text, fontSize:14, outline:"none", boxSizing:"border-box" }} />
+      </div>
+    );
+
+    const Sel = ({ label, value, onChange, options }) => (
+      <div style={{ marginBottom:10 }}>
+        {label && <div style={{ fontSize:11, color:T.muted, marginBottom:4, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.08em" }}>{label}</div>}
+        <select value={value} onChange={e=>onChange(e.target.value)}
+          style={{ width:"100%", background:"rgba(255,255,255,0.85)", border:"1px solid rgba(0,0,0,0.08)", borderRadius:10, padding:"10px 12px", color:T.text, fontSize:14, outline:"none" }}>
+          <option value="">— เลือก —</option>
+          {options.map(o=><option key={o} value={o}>{o}</option>)}
+        </select>
+      </div>
+    );
+
+    const StatBox = ({ label, value, unit, color=T.text }) => (
+      <div style={{ background:"rgba(255,255,255,0.70)", borderRadius:14, padding:"12px 8px", textAlign:"center", border:"1px solid rgba(255,255,255,0.95)", flex:1, boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
+        <div style={{ fontSize:20, fontWeight:700, color, lineHeight:1 }}>{value ?? "—"}</div>
+        {unit && <div style={{ fontSize:9, color:T.muted, marginTop:2 }}>{unit}</div>}
+        <div style={{ fontSize:10, color:T.muted, marginTop:3 }}>{label}</div>
+      </div>
+    );
+
+    const BurnRing = ({ actual, target }) => {
+      const pct = Math.min((actual/target)*100, 100);
+      const r=28, circ=2*Math.PI*r, dash=(pct/100)*circ;
+      const color = pct>=90 ? T.mint : pct>=60 ? T.gold : T.accent;
+      return (
+        <div style={{ position:"relative", width:80, height:80, flexShrink:0 }}>
+          <svg width="80" height="80" style={{ transform:"rotate(-90deg)" }}>
+            <circle cx="40" cy="40" r={r} fill="none" stroke="rgba(0,0,0,0.08)" strokeWidth="6"/>
+            <circle cx="40" cy="40" r={r} fill="none" stroke={color} strokeWidth="6"
+              strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"/>
+          </svg>
+          <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
+            <div style={{ fontSize:16, fontWeight:700, color }}>{Math.round(pct)}%</div>
+            <div style={{ fontSize:8, color:T.muted }}>เบิร์น</div>
+          </div>
+        </div>
+      );
+    };
+
+    const emptyLog = () => ({ id:Date.now(), date:new Date().toISOString().slice(0,10), day:"", phase:"", workoutType:"", channel:"", videoUrl:"", duration:"", completed:false, intensity:"",
+      avgHR:"", maxHR:"", calories:"", zone3:"", zone4:"", trainingLoad:"", stress:"", steps:"",
+      dumbbell:"", vsLastWeek:"", muscleGroups:[], prToday:false, energyBefore:"", energyAfter:"", soreness:"", notes:"" });
+    const emptyProg = () => ({ id:Date.now(), date:new Date().toISOString().slice(0,10), checkpoint:"", weight:"", chest:"", waist:"", hips:"", clothesFit:"", photoTaken:false, strengthNote:"", restingHR:"", sleepAvg:"", notes:"" });
+    const emptyWeek = () => ({ id:Date.now(), weekEnding:new Date().toISOString().slice(0,10), phase:"", workoutsCompleted:"", totalCalories:"", heaviestDumbbell:"", avgBodyBattery:"", avgStress:"", dietAdherence:"", sugarCravings:"", winOfWeek:"", adjustNextWeek:"", overallFeeling:"" });
+
+    // ── MAIN APP
+    function App() {
+      const [tab, setTab] = useState("dashboard");
+      const [logs, setLogs] = useState(() => load("logs") || []);
+      const [progs, setProgs] = useState(() => load("progs") || []);
+      const [weeks, setWeeks] = useState(() => load("weeks") || []);
+      const [showLog, setShowLog] = useState(false);
+      const [showProg, setShowProg] = useState(false);
+      const [showWeek, setShowWeek] = useState(false);
+      const [logF, setLogF] = useState(emptyLog());
+      const [progF, setProgF] = useState(emptyProg());
+      const [weekF, setWeekF] = useState(emptyWeek());
+      const [saved, setSaved] = useState(false);
+
+      const flash = () => { setSaved(true); setTimeout(()=>setSaved(false), 1800); };
+
+      const saveLog = () => { const u=[{...logF,id:Date.now()},...logs]; setLogs(u); save("logs",u); setShowLog(false); setLogF(emptyLog()); flash(); };
+      const saveProg = () => { const u=[{...progF,id:Date.now()},...progs]; setProgs(u); save("progs",u); setShowProg(false); setProgF(emptyProg()); flash(); };
+      const saveWeek = () => { const u=[{...weekF,id:Date.now()},...weeks]; setWeeks(u); save("weeks",u); setShowWeek(false); setWeekF(emptyWeek()); flash(); };
+      const delLog = (id) => { const u=logs.filter(l=>l.id!==id); setLogs(u); save("logs",u); };
+
+      const now = new Date(); const weekStart = new Date(now); weekStart.setDate(now.getDate()-now.getDay());
+      const thisWeek = logs.filter(l=>new Date(l.date)>=weekStart);
+      const burnWeek = thisWeek.reduce((a,l)=>a+(Number(l.calories)||0),0);
+      const doneWeek = thisWeek.filter(l=>l.completed).length;
+      const latestP = progs[0];
+      const wChange = latestP ? (Number(latestP.weight)-53.9).toFixed(1) : null;
+      const phIdx = Math.min(Math.floor(logs.length/14),3);
+      const phTarget = PHASE_TARGETS[phIdx];
+      const toggleM = (m) => setLogF(f=>({...f,muscleGroups:f.muscleGroups.includes(m)?f.muscleGroups.filter(x=>x!==m):[...f.muscleGroups,m]}));
+      const chCol = (ch) => ch?.includes("KBody") ? T.kbody : ch?.includes("anna") ? T.gold : T.text;
+
+      const card = { background:"rgba(255,255,255,0.65)", borderRadius:16, padding:"14px 15px", marginBottom:8, border:"1px solid rgba(255,255,255,0.92)", boxShadow:"0 2px 10px rgba(0,0,0,0.05)" };
+      const formWrap = { background:"rgba(255,255,255,0.78)", borderRadius:20, padding:"18px", marginBottom:16, border:"1px solid rgba(255,255,255,0.96)", boxShadow:"0 4px 20px rgba(0,0,0,0.07)" };
+      const sectionBox = (color) => ({ background:`${color}08`, borderRadius:14, padding:"14px", marginBottom:10, border:`1px solid ${color}20` });
+      const btnPrimary = (color) => ({ width:"100%", background:color, border:"none", borderRadius:14, padding:"14px", color:"white", fontSize:14, fontWeight:600, cursor:"pointer", boxShadow:`0 4px 16px ${color}44` });
+
+      return (
+        <div style={{ fontFamily:"-apple-system,'SF Pro Display','Noto Sans Thai',system-ui,sans-serif", background:T.bgGrad, minHeight:"100vh", color:T.text, paddingBottom:80 }}>
+
+          {/* TOP BAR */}
+          <div style={{ background:"rgba(242,242,247,0.85)", backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)", borderBottom:"1px solid rgba(0,0,0,0.06)", padding:"14px 18px", position:"sticky", top:0, zIndex:50, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+            <div>
+              <div style={{ fontSize:16, fontWeight:800, letterSpacing:"-0.03em" }}>FIT<span style={{color:T.accent}}>TRACK</span></div>
+              <div style={{ fontSize:10, color:T.muted }}>KBodySculpt × Growingannanas · 12W</div>
+            </div>
+            <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+              {saved && <span style={{ fontSize:11, color:T.mint, fontWeight:600 }}>✓ บันทึกแล้ว</span>}
+              <Badge color={T.gold}>{PHASES[phIdx]}</Badge>
+            </div>
+          </div>
+
+          {/* SUB NAV */}
+          <div style={{ display:"flex", borderBottom:"1px solid rgba(0,0,0,0.06)", background:"rgba(242,242,247,0.85)", backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)", overflowX:"auto" }}>
+            {[["dashboard","🏠 Overview"],["log","📋 Log"],["progress","📏 Body"],["weekly","📊 Weekly"]].map(([k,label])=>(
+              <button key={k} onClick={()=>setTab(k)}
+                style={{ border:"none", background:"none", padding:"12px 18px", fontSize:12, fontWeight:tab===k?700:400, cursor:"pointer", whiteSpace:"nowrap",
+                  color:tab===k?T.accent:T.muted, borderBottom:tab===k?`2px solid ${T.accent}`:"2px solid transparent" }}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ maxWidth:540, margin:"0 auto", padding:"16px 14px" }}>
+
+            {/* ── DASHBOARD ── */}
+            {tab==="dashboard" && (
+              <div>
+                <div style={{ background:T.shimmer, borderRadius:22, padding:"20px", marginBottom:14, border:"1px solid rgba(255,255,255,0.96)", boxShadow:"0 4px 24px rgba(0,0,0,0.08),inset 0 1px 0 rgba(255,255,255,0.8)" }}>
+                  <div style={{ fontSize:11, color:T.muted, textTransform:"uppercase", letterSpacing:"0.12em", marginBottom:12 }}>สัปดาห์นี้</div>
+                  <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+                    <BurnRing actual={burnWeek} target={phTarget}/>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:28, fontWeight:900, lineHeight:1, color:T.accent }}>{burnWeek}</div>
+                      <div style={{ fontSize:12, color:T.muted, marginBottom:8 }}>/ {phTarget} kcal เป้าหมาย</div>
+                      <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                        <Badge color={T.mint}>{doneWeek}/5 วัน ✓</Badge>
+                        <Badge color={T.gold}>{phTarget-burnWeek>0?`เหลือ ${phTarget-burnWeek} kcal`:"🎉 ครบแล้ว!"}</Badge>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display:"flex", gap:8, marginBottom:14 }}>
+                  <StatBox label="น้ำหนัก" value={latestP?.weight??"53.9"} unit="kg"/>
+                  <StatBox label="เปลี่ยน" value={wChange?(wChange>0?`+${wChange}`:wChange):"0"} unit="kg" color={wChange<0?T.mint:T.kbody}/>
+                  <StatBox label="รอบอก" value={latestP?.chest??"—"} unit="cm"/>
+                  <StatBox label="รอบเอว" value={latestP?.waist??"—"} unit="cm"/>
+                </div>
+
+                {thisWeek.some(l=>Number(l.stress)>60) && (
+                  <div style={{ background:"rgba(255,59,48,0.08)", border:"1px solid rgba(255,59,48,0.18)", borderRadius:16, padding:"12px 14px", marginBottom:14, display:"flex", gap:10 }}>
+                    <span style={{fontSize:20}}>⚠️</span>
+                    <div>
+                      <div style={{ fontSize:13, fontWeight:700, color:T.kbody }}>Stress สูงสัปดาห์นี้</div>
+                      <div style={{ fontSize:12, color:T.muted }}>พิจารณาเปลี่ยน HIIT เป็น Recovery</div>
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:16 }}>
+                  {[
+                    {label:"+ Log Workout", action:()=>{setTab("log");setShowLog(true);}, color:T.accent},
+                    {label:"+ Body Check", action:()=>{setTab("progress");setShowProg(true);}, color:T.mint},
+                    {label:"+ Weekly Review", action:()=>{setTab("weekly");setShowWeek(true);}, color:T.gold},
+                    {label:"📊 Tips", action:()=>{}, color:T.purple},
+                  ].map((btn,i)=>(
+                    <button key={i} onClick={btn.action}
+                      style={{ background:"rgba(255,255,255,0.70)", border:"1px solid rgba(255,255,255,0.92)", borderRadius:16, padding:"14px", fontSize:13, fontWeight:600, color:btn.color, cursor:"pointer", boxShadow:"0 2px 10px rgba(0,0,0,0.05)" }}>
+                      {btn.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{ fontSize:11, color:T.muted, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:8 }}>บันทึกล่าสุด</div>
+                {logs.length===0 && <div style={{ textAlign:"center", color:T.dim, padding:"32px 0", fontSize:13 }}>ยังไม่มี log — กด "+ Log Workout"</div>}
+                {logs.slice(0,5).map(l=>(
+                  <div key={l.id} style={card}>
+                    <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
+                      <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                        <span style={{ fontSize:12, fontWeight:700 }}>{l.date}</span>
+                        {l.completed && <Badge color={T.mint}>✓</Badge>}
+                        {l.prToday && <Badge color={T.gold}>🏆 PR</Badge>}
+                      </div>
+                      <span style={{ fontSize:14, fontWeight:800, color:T.accent }}>{l.calories?`🔥 ${l.calories}`:""} kcal</span>
+                    </div>
+                    <div style={{ fontSize:12, fontWeight:600, color:chCol(l.channel), marginBottom:4 }}>{l.workoutType}{l.channel?` · ${l.channel}`:""}</div>
+                    <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                      {l.avgHR && <Badge color="#f43f5e">❤️ {l.avgHR}/{l.maxHR}</Badge>}
+                      {l.duration && <Badge color={T.muted}>⏱ {l.duration}m</Badge>}
+                      {l.dumbbell && <Badge color={T.kbody}>💪 {l.dumbbell}kg</Badge>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ── LOG ── */}
+            {tab==="log" && (
+              <div>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+                  <div style={{ fontSize:16, fontWeight:800 }}>📋 Workout Log</div>
+                  <button onClick={()=>setShowLog(!showLog)}
+                    style={{ background:T.accent, border:"none", borderRadius:12, padding:"8px 18px", color:"white", fontSize:13, fontWeight:600, cursor:"pointer" }}>
+                    {showLog?"ยกเลิก":"+ Log ใหม่"}
+                  </button>
+                </div>
+
+                {showLog && (
+                  <div style={formWrap}>
+                    <div style={{ fontSize:13, fontWeight:700, color:T.accent, marginBottom:14 }}>🏋️ บันทึกการออกกำลังกาย</div>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                      <Inp label="วันที่" type="date" value={logF.date} onChange={v=>setLogF(f=>({...f,date:v}))}/>
+                      <Sel label="วัน" value={logF.day} onChange={v=>setLogF(f=>({...f,day:v}))} options={DAYS}/>
+                    </div>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                      <Sel label="Phase" value={logF.phase} onChange={v=>setLogF(f=>({...f,phase:v}))} options={PHASES}/>
+                      <Sel label="ช่อง" value={logF.channel} onChange={v=>setLogF(f=>({...f,channel:v}))} options={CHANNELS}/>
+                    </div>
+                    <Sel label="Workout Type" value={logF.workoutType} onChange={v=>setLogF(f=>({...f,workoutType:v}))} options={WORKOUT_TYPES}/>
+                    <Inp label="Video URL" value={logF.videoUrl} onChange={v=>setLogF(f=>({...f,videoUrl:v}))} placeholder="https://youtube.com/..."/>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                      <Inp label="เวลา (นาที)" type="number" value={logF.duration} onChange={v=>setLogF(f=>({...f,duration:v}))} placeholder="30"/>
+                      <Sel label="Intensity" value={logF.intensity} onChange={v=>setLogF(f=>({...f,intensity:v}))} options={INTENSITY}/>
+                    </div>
+
+                    <div style={sectionBox(T.mint)}>
+                      <div style={{ fontSize:11, color:T.mint, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:10 }}>⌚ Garmin Data</div>
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                        <Inp label="Avg HR" type="number" value={logF.avgHR} onChange={v=>setLogF(f=>({...f,avgHR:v}))} placeholder="125"/>
+                        <Inp label="Max HR" type="number" value={logF.maxHR} onChange={v=>setLogF(f=>({...f,maxHR:v}))} placeholder="158"/>
+                        <Inp label="Calories" type="number" value={logF.calories} onChange={v=>setLogF(f=>({...f,calories:v}))} placeholder="185"/>
+                        <Inp label="Training Load" type="number" value={logF.trainingLoad} onChange={v=>setLogF(f=>({...f,trainingLoad:v}))} placeholder="42"/>
+                        <Inp label="Zone 3 (%)" type="number" value={logF.zone3} onChange={v=>setLogF(f=>({...f,zone3:v}))} placeholder="35"/>
+                        <Inp label="Zone 4 (%)" type="number" value={logF.zone4} onChange={v=>setLogF(f=>({...f,zone4:v}))} placeholder="20"/>
+                        <Inp label="Stress" type="number" value={logF.stress} onChange={v=>setLogF(f=>({...f,stress:v}))} placeholder="28"/>
+                        <Inp label="Steps" type="number" value={logF.steps} onChange={v=>setLogF(f=>({...f,steps:v}))} placeholder="6500"/>
+                      </div>
+                    </div>
+
+                    <div style={sectionBox(T.kbody)}>
+                      <div style={{ fontSize:11, color:T.kbody, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:10 }}>💪 Strength Data</div>
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                        <Inp label="Dumbbell (kg)" type="number" value={logF.dumbbell} onChange={v=>setLogF(f=>({...f,dumbbell:v}))} placeholder="2.5"/>
+                        <Sel label="vs สัปดาห์ที่แล้ว" value={logF.vsLastWeek} onChange={v=>setLogF(f=>({...f,vsLastWeek:v}))} options={["หนักขึ้น 💪","เท่าเดิม","เบาลง","ครั้งแรก"]}/>
+                      </div>
+                      <div style={{ fontSize:11, color:T.muted, marginBottom:6, fontWeight:600, textTransform:"uppercase" }}>กล้ามเนื้อที่โดน</div>
+                      <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:10 }}>
+                        {MUSCLE_GROUPS.map(m=>(
+                          <button key={m} onClick={()=>toggleM(m)}
+                            style={{ border:`1px solid ${logF.muscleGroups.includes(m)?T.kbody:"rgba(0,0,0,0.10)"}`, borderRadius:20, padding:"5px 11px", fontSize:11, cursor:"pointer",
+                              background:logF.muscleGroups.includes(m)?"rgba(255,55,95,0.10)":"rgba(255,255,255,0.60)", color:logF.muscleGroups.includes(m)?T.kbody:T.muted }}>
+                            {m}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                      <Sel label="Energy ก่อน (1-5)" value={logF.energyBefore} onChange={v=>setLogF(f=>({...f,energyBefore:v}))} options={["1","2","3","4","5"]}/>
+                      <Sel label="Energy หลัง (1-5)" value={logF.energyAfter} onChange={v=>setLogF(f=>({...f,energyAfter:v}))} options={["1","2","3","4","5"]}/>
+                    </div>
+                    <Sel label="ปวดกล้ามเนื้อ" value={logF.soreness} onChange={v=>setLogF(f=>({...f,soreness:v}))} options={["ไม่ปวด","ปวดเล็กน้อย","ปวดกลาง","ปวดมาก (DOMS)"]}/>
+                    <Inp label="Notes" value={logF.notes} onChange={v=>setLogF(f=>({...f,notes:v}))} placeholder="สิ่งที่ทำได้ดี / ต้องปรับ"/>
+
+                    <div style={{ display:"flex", gap:16, marginBottom:14 }}>
+                      <label style={{ display:"flex", gap:6, alignItems:"center", fontSize:13, cursor:"pointer" }}>
+                        <input type="checkbox" checked={logF.completed} onChange={e=>setLogF(f=>({...f,completed:e.target.checked}))}/> ✅ ทำครบ
+                      </label>
+                      <label style={{ display:"flex", gap:6, alignItems:"center", fontSize:13, color:T.gold, cursor:"pointer" }}>
+                        <input type="checkbox" checked={logF.prToday} onChange={e=>setLogF(f=>({...f,prToday:e.target.checked}))}/> 🏆 PR!
+                      </label>
+                    </div>
+                    <button onClick={saveLog} style={btnPrimary(T.accent)}>บันทึก Workout</button>
+                  </div>
+                )}
+
+                {logs.length===0 && !showLog && <div style={{ textAlign:"center", color:T.dim, padding:"40px 0", fontSize:13 }}>ยังไม่มี log</div>}
+                {logs.map(l=>(
+                  <div key={l.id} style={card}>
+                    <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
+                      <div>
+                        <span style={{ fontSize:12, fontWeight:700 }}>{l.date}</span>
+                        {l.day && <span style={{ fontSize:11, color:T.muted, marginLeft:6 }}>{l.day}</span>}
+                        <span style={{ marginLeft:8 }}>{l.completed && <Badge color={T.mint}>✓</Badge>}</span>
+                        <span style={{ marginLeft:4 }}>{l.prToday && <Badge color={T.gold}>🏆</Badge>}</span>
+                      </div>
+                      <button onClick={()=>delLog(l.id)} style={{ background:"none", border:"none", color:T.dim, cursor:"pointer", fontSize:18 }}>✕</button>
+                    </div>
+                    <div style={{ fontSize:13, fontWeight:600, color:chCol(l.channel), marginBottom:6 }}>{l.workoutType}{l.channel?` · ${l.channel}`:""}</div>
+                    <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                      {l.calories && <Badge color={T.accent}>🔥 {l.calories}</Badge>}
+                      {l.avgHR && <Badge color="#f43f5e">❤️ {l.avgHR}/{l.maxHR}</Badge>}
+                      {l.duration && <Badge color={T.muted}>⏱ {l.duration}m</Badge>}
+                      {l.dumbbell && <Badge color={T.kbody}>💪 {l.dumbbell}kg</Badge>}
+                      {l.trainingLoad && <Badge color={T.gold}>Load {l.trainingLoad}</Badge>}
+                      {l.stress && <Badge color={Number(l.stress)>50?T.kbody:T.mint}>Stress {l.stress}</Badge>}
+                    </div>
+                    {l.muscleGroups?.length>0 && <div style={{ fontSize:11, color:T.muted, marginTop:4 }}>{l.muscleGroups.join(" · ")}</div>}
+                    {l.notes && <div style={{ fontSize:11, color:T.muted, marginTop:4, fontStyle:"italic" }}>"{l.notes}"</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ── BODY PROGRESS ── */}
+            {tab==="progress" && (
+              <div>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+                  <div style={{ fontSize:16, fontWeight:800 }}>📏 Body Progress</div>
+                  <button onClick={()=>setShowProg(!showProg)}
+                    style={{ background:T.mint, border:"none", borderRadius:12, padding:"8px 18px", color:"white", fontSize:13, fontWeight:600, cursor:"pointer" }}>
+                    {showProg?"ยกเลิก":"+ วัดใหม่"}
+                  </button>
+                </div>
+
+                {showProg && (
+                  <div style={formWrap}>
+                    <div style={{ fontSize:13, fontWeight:700, color:T.mint, marginBottom:14 }}>📏 Body Measurement</div>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                      <Inp label="วันที่" type="date" value={progF.date} onChange={v=>setProgF(f=>({...f,date:v}))}/>
+                      <Sel label="Checkpoint" value={progF.checkpoint} onChange={v=>setProgF(f=>({...f,checkpoint:v}))} options={CHECKPOINTS}/>
+                      <Inp label="น้ำหนัก (kg)" type="number" value={progF.weight} onChange={v=>setProgF(f=>({...f,weight:v}))} placeholder="53.9"/>
+                      <Inp label="รอบอก (cm)" type="number" value={progF.chest} onChange={v=>setProgF(f=>({...f,chest:v}))} placeholder="88"/>
+                      <Inp label="รอบเอว (cm)" type="number" value={progF.waist} onChange={v=>setProgF(f=>({...f,waist:v}))} placeholder="75"/>
+                      <Inp label="รอบสะโพก (cm)" type="number" value={progF.hips} onChange={v=>setProgF(f=>({...f,hips:v}))} placeholder="96"/>
+                      <Inp label="Resting HR" type="number" value={progF.restingHR} onChange={v=>setProgF(f=>({...f,restingHR:v}))} placeholder="62"/>
+                      <Inp label="Sleep เฉลี่ย (h)" type="number" value={progF.sleepAvg} onChange={v=>setProgF(f=>({...f,sleepAvg:v}))} placeholder="6.5"/>
+                    </div>
+                    <Sel label="เสื้อผ้าตัวทดสอบ" value={progF.clothesFit} onChange={v=>setProgF(f=>({...f,clothesFit:v}))} options={CLOTHES_FIT}/>
+                    <Inp label="Strength Note" value={progF.strengthNote} onChange={v=>setProgF(f=>({...f,strengthNote:v}))} placeholder="Squat 2kg → 3kg"/>
+                    <Inp label="Notes" value={progF.notes} onChange={v=>setProgF(f=>({...f,notes:v}))} placeholder="ความรู้สึก / สิ่งที่เปลี่ยนไป"/>
+                    <label style={{ display:"flex", gap:8, alignItems:"center", fontSize:13, cursor:"pointer", marginBottom:14 }}>
+                      <input type="checkbox" checked={progF.photoTaken} onChange={e=>setProgF(f=>({...f,photoTaken:e.target.checked}))}/> 📸 ถ่ายรูปแล้ว
+                    </label>
+                    <button onClick={saveProg} style={btnPrimary(T.mint)}>บันทึก Body Check</button>
+                  </div>
+                )}
+
+                <div style={card}>
+                  <div style={{ fontSize:11, color:T.muted, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:8 }}>Week 0 — จุดเริ่มต้น</div>
+                  <div style={{ display:"flex", gap:8 }}>
+                    <StatBox label="น้ำหนัก" value="53.9" unit="kg"/>
+                    <StatBox label="BMI" value="22.4" unit="" color={T.mint}/>
+                    <StatBox label="เป้าหมาย" value="-3–5" unit="kg" color={T.gold}/>
+                  </div>
+                </div>
+
+                {progs.length===0 && !showProg && <div style={{ textAlign:"center", color:T.dim, padding:"40px 0", fontSize:13 }}>ยังไม่มีข้อมูล</div>}
+                {progs.map(p=>{
+                  const wc = p.weight?(Number(p.weight)-53.9).toFixed(1):null;
+                  return (
+                    <div key={p.id} style={card}>
+                      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
+                        <span style={{ fontSize:12, fontWeight:700 }}>{p.date}</span>
+                        {p.checkpoint && <Badge color={T.mint}>{p.checkpoint}</Badge>}
+                        {p.photoTaken && <span>📸</span>}
+                      </div>
+                      <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+                        {p.weight && <StatBox label="น้ำหนัก" value={p.weight} unit="kg"/>}
+                        {wc!==null && <StatBox label="เปลี่ยน" value={wc>0?`+${wc}`:wc} unit="kg" color={wc<=0?T.mint:T.kbody}/>}
+                        {p.chest && <StatBox label="อก" value={p.chest} unit="cm"/>}
+                        {p.waist && <StatBox label="เอว" value={p.waist} unit="cm"/>}
+                      </div>
+                      <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                        {p.clothesFit && <Badge color={p.clothesFit==="พอดี"||p.clothesFit==="หลวม"?T.mint:T.gold}>{p.clothesFit}</Badge>}
+                        {p.restingHR && <Badge color="#f43f5e">RHR {p.restingHR}</Badge>}
+                      </div>
+                      {p.strengthNote && <div style={{ fontSize:11, color:T.kbody, marginTop:6 }}>💪 {p.strengthNote}</div>}
+                      {p.notes && <div style={{ fontSize:11, color:T.muted, marginTop:4, fontStyle:"italic" }}>"{p.notes}"</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* ── WEEKLY ── */}
+            {tab==="weekly" && (
+              <div>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+                  <div style={{ fontSize:16, fontWeight:800 }}>📊 Weekly Review</div>
+                  <button onClick={()=>setShowWeek(!showWeek)}
+                    style={{ background:T.gold, border:"none", borderRadius:12, padding:"8px 18px", color:"white", fontSize:13, fontWeight:600, cursor:"pointer" }}>
+                    {showWeek?"ยกเลิก":"+ Review ใหม่"}
+                  </button>
+                </div>
+
+                {showWeek && (
+                  <div style={formWrap}>
+                    <div style={{ fontSize:13, fontWeight:700, color:T.gold, marginBottom:14 }}>📊 Weekly Review</div>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                      <Inp label="Week Ending" type="date" value={weekF.weekEnding} onChange={v=>setWeekF(f=>({...f,weekEnding:v}))}/>
+                      <Sel label="Phase" value={weekF.phase} onChange={v=>setWeekF(f=>({...f,phase:v}))} options={PHASES}/>
+                      <Inp label="Workouts (/5)" type="number" value={weekF.workoutsCompleted} onChange={v=>setWeekF(f=>({...f,workoutsCompleted:v}))} placeholder="4" min="0" max="5"/>
+                      <Inp label="Total Calories" type="number" value={weekF.totalCalories} onChange={v=>setWeekF(f=>({...f,totalCalories:v}))} placeholder="650"/>
+                      <Inp label="Heaviest DB (kg)" type="number" value={weekF.heaviestDumbbell} onChange={v=>setWeekF(f=>({...f,heaviestDumbbell:v}))} placeholder="3"/>
+                      <Inp label="Avg Body Battery" type="number" value={weekF.avgBodyBattery} onChange={v=>setWeekF(f=>({...f,avgBodyBattery:v}))} placeholder="65"/>
+                      <Inp label="Avg Stress" type="number" value={weekF.avgStress} onChange={v=>setWeekF(f=>({...f,avgStress:v}))} placeholder="32"/>
+                    </div>
+                    <Sel label="Diet Adherence" value={weekF.dietAdherence} onChange={v=>setWeekF(f=>({...f,dietAdherence:v}))} options={["ดีมาก (90%+)","ดี (70-90%)","พอใช้ (50-70%)","ต้องปรับ (<50%)"]}/>
+                    <Sel label="Sugar Cravings" value={weekF.sugarCravings} onChange={v=>setWeekF(f=>({...f,sugarCravings:v}))} options={["ไม่โหยเลย 🎉","โหยเล็กน้อย","โหยปานกลาง","โหยมาก"]}/>
+                    <Sel label="Overall Feeling" value={weekF.overallFeeling} onChange={v=>setWeekF(f=>({...f,overallFeeling:v}))} options={["🌟 ดีมาก","😊 ดี","😐 พอใช้","😓 ต้องพัก"]}/>
+                    <Inp label="🏆 Win of the Week" value={weekF.winOfWeek} onChange={v=>setWeekF(f=>({...f,winOfWeek:v}))} placeholder="สิ่งที่ทำได้ดี 1 อย่าง"/>
+                    <Inp label="🔧 ปรับสัปดาห์หน้า" value={weekF.adjustNextWeek} onChange={v=>setWeekF(f=>({...f,adjustNextWeek:v}))} placeholder="สิ่งที่จะเปลี่ยน"/>
+                    <button onClick={saveWeek} style={btnPrimary(T.gold)}>บันทึก Weekly Review</button>
+                  </div>
+                )}
+
+                {weeks.length===0 && !showWeek && <div style={{ textAlign:"center", color:T.dim, padding:"40px 0", fontSize:13 }}>ยังไม่มี review</div>}
+                {weeks.map(w=>{
+                  const pi=PHASES.indexOf(w.phase); const tg=pi>=0?PHASE_TARGETS[pi]:700;
+                  const pc=w.totalCalories?Math.round((Number(w.totalCalories)/tg)*100):0;
+                  return (
+                    <div key={w.id} style={card}>
+                      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
+                        <span style={{ fontSize:12, fontWeight:700 }}>{w.weekEnding}</span>
+                        {w.phase && <Badge color={T.gold}>{w.phase}</Badge>}
+                      </div>
+                      <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+                        <StatBox label="Workouts" value={`${w.workoutsCompleted}/5`} color={Number(w.workoutsCompleted)>=4?T.mint:T.gold}/>
+                        <StatBox label="Kcal" value={w.totalCalories||"—"} color={T.accent}/>
+                        <StatBox label="%" value={w.totalCalories?`${pc}%`:"—"} color={pc>=90?T.mint:pc>=60?T.gold:T.kbody}/>
+                        <StatBox label="DB" value={w.heaviestDumbbell?`${w.heaviestDumbbell}kg`:"—"} color={T.kbody}/>
+                      </div>
+                      {w.winOfWeek && <div style={{ background:"rgba(255,149,0,0.08)", borderRadius:10, padding:"8px 12px", fontSize:12, color:T.gold, border:"1px solid rgba(255,149,0,0.15)" }}>🏆 {w.winOfWeek}</div>}
+                      {w.sugarCravings && <div style={{ fontSize:11, color:T.muted, marginTop:6 }}>🍬 {w.sugarCravings}</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* BOTTOM NAV */}
+          <div style={{ position:"fixed", bottom:0, left:0, right:0, background:"rgba(242,242,247,0.90)", backdropFilter:"blur(28px)", WebkitBackdropFilter:"blur(28px)", borderTop:"1px solid rgba(255,255,255,0.70)", display:"flex", zIndex:50, paddingBottom:"env(safe-area-inset-bottom,0px)" }}>
+            {[["dashboard","🏠","Overview"],["log","📋","Log"],["progress","📏","Body"],["weekly","📊","Weekly"]].map(([k,icon,label])=>(
+              <button key={k} onClick={()=>setTab(k)}
+                style={{ flex:1, border:"none", background:"none", padding:"10px 4px 10px", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
+                <span style={{ fontSize:20, opacity:tab===k?1:0.4 }}>{icon}</span>
+                <span style={{ fontSize:9, color:tab===k?T.accent:T.muted, fontWeight:tab===k?700:400 }}>{label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.render(<App/>, document.getElementById("root"));
+  </script>
+</body>
+</html>
